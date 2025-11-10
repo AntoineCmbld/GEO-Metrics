@@ -4,7 +4,7 @@ from typing import List, Dict
 from openai import OpenAI
 import re
 
-app = FastAPI(title="Brand Mention Analyzer")
+app = FastAPI(title="GEO Metrics")
 
 # Initialize OpenAI client (make sure you set OPENAI_API_KEY in your environment)
 client = OpenAI()
