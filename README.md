@@ -1,6 +1,6 @@
 # GEO Metrics API
 
-**GEO Metrics** is a FastAPI backend that analyzes how frequently a brand appears when discussing specific keywords using OpenAI GPT models. The API is containerized with Docker and can be run via Docker Compose.
+**GEO Metrics** is a FastAPI backend that analyzes how frequently a brand appears when discussing specific keywords using the most popular AI models available to the public. The API is containerized with Docker and can be run via Docker Compose.
 
 ---
 
