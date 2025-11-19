@@ -1,9 +1,10 @@
 import os
 from fastapi import FastAPI
-from routes import providers
+from routes import providers, health
 
 app = FastAPI(title="llm-service", version="0.1.0")
 
+app.include_router(health.router, prefix="/api")
 app.include_router(providers.router, prefix="/api")
 
 if __name__ == "__main__":

@@ -1,9 +1,10 @@
 import os
 from fastapi import FastAPI
-from routes import reports
+from routes import reports, health
 
 app = FastAPI(title="report-service", version="0.1.0")
 
+app.include_router(health.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 
 if __name__ == "__main__":

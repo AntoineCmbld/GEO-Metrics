@@ -1,20 +1,30 @@
 import os
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from routes import health, reports, llm
-from routes.proxy import close_client
+from routes import health, reports, llm, analyze
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup logic (if needed)
+    logger.info("API Gateway starting up...")
     yield
-    # Shutdown logic
-    await close_client()
+    logger.info("API Gateway shutting down...")
 
-app = FastAPI(title="api-gateway", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="api-gateway",
+    version="0.1.0",
+    lifespan=lifespan
+)
 
-# Mount routers under /api
 app.include_router(health.router, prefix="/api")
+app.include_router(analyze.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 app.include_router(llm.router, prefix="/api")
 

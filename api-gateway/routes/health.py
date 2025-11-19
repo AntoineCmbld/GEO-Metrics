@@ -1,8 +1,12 @@
 from fastapi import APIRouter
-from datetime import datetime
+from datetime import datetime, timezone
 
-router = APIRouter(prefix="/health")
+router = APIRouter(tags=["health"])
 
-@router.get("/")
+@router.get("/health", include_in_schema=True)
 async def health():
-    return {"status": "ok", "service": "api-gateway", "time": datetime.utcnow().isoformat() + "Z"}
+    return {
+        "status": "healthy",
+        "service": "api-gateway",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }

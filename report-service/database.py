@@ -2,6 +2,7 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from models.report_model import Base
+from typing import Generator
 
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
@@ -18,7 +19,7 @@ def init_db():
     """Create database tables"""
     Base.metadata.create_all(bind=engine)
 
-def get_db() -> Session:
+def get_db() -> Generator[Session, None, None]:
     """Dependency to get database session"""
     db = SessionLocal()
     try:
