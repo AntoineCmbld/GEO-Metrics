@@ -1,7 +1,0 @@
-fastapi
-uvicorn
-openai
-google-genai
-groq
-requests
-pydantic

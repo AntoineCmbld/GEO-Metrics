@@ -1,51 +1,23 @@
-# GEO Metrics API
+# GEO Metrics
 
-**GEO Metrics** is a FastAPI backend that analyzes how frequently a brand appears when discussing specific keywords using the most popular AI models available to the public. The API is containerized with Docker and can be run via Docker Compose.
+## Purpose
+GEO Metrics generates analytical reports that evaluate how well content is optimized for generative AI answer engines (Generative Engine Optimization). It ingests content, queries multiple LLM providers, scores visibility/readiness, and produces structured reports.
 
----
+## Core Services
+- api-gateway: Unified entry point, request routing, auth.
+- report-service: Aggregates raw LLM outputs, computes GEO scores, stores report metadata.
+- llm-service: Normalized interface to multiple LLM providers (OpenAI, Gemini, Groq).
+- db: Persistence (reports, provider responses, scoring history).
+- k8s: Deployment manifests.
 
-## Features
-
-- Accepts a brand name and a list of keywords
-- Queries multiple popular AIs for each keyword
-- Counts brand mentions and calculates normalized mention ratio
-- Returns results in structured JSON
-- Fully containerized with Docker for easy deployment
-- Handles OpenAI API errors gracefully per keyword
-
----
-
-## Prerequisites
-
-- [Docker](https://docs.docker.com/get-docker/) installed
-- [Docker Compose](https://docs.docker.com/compose/install/)
-- OpenAI, Google Gemini and Groq API key
+### Prerequisites
+- [Minikube](https://minikube.sigs.k8s.io/docs/start/) installed and running
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) configured
+- [Helm](https://helm.sh/docs/intro/install/) (optional, if using charts)
+- Docker (for building images locally, if needed)
 
 ---
 
-## Setup
-
-1. Clone the repository:
-
+### 1. Start Minikube
 ```bash
-git clone <repository_url>
-cd GEO\ Metrics
-```
-
-2. Create a .env file in the project root with your OpenAI API key:
-
-```bash
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxx
-GOOGLE_API_KEY=xxxxxxxxxxxxxxxxxxxxxxx
-GROQ_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-3. Build and start the Docker Compose services:
-
-```bash
-docker-compose up --build
-```
-
-The API will be available at http://localhost:8000.
-
-Get API documentation at http://localhost:8000/docs#/.
+minikube start
