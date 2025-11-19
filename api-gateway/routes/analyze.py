@@ -16,10 +16,10 @@ router = APIRouter(prefix="/analyze", tags=["analysis"])
 class AnalyzeRequest(BaseModel):
     brand_name: str = Field(..., description="Brand name to analyze")
     models: List[str] = Field(..., description="LLM models to query (e.g., ['openai:gpt-4', 'groq:llama-3.1-8b-instant'])")
-    keywords: List[str] = Field(..., description="Keywords to search for")
+    keywords: List[str] = Field(..., description="Keywords to query separately")
     prompt_template: str = Field(
-        default="What do you know about {brand_name}? Describe their products, services, and reputation.",
-        description="Prompt template with {brand_name} placeholder"
+        default="What do you know about {keyword}? What brands come to your mind when you think of {keyword}?",
+        description="Prompt template with {keyword} placeholder"
     )
 
 class AnalyzeResponse(BaseModel):
@@ -33,73 +33,77 @@ class AnalyzeResponse(BaseModel):
 async def analyze_brand(request: AnalyzeRequest):
     """
     Orchestrates the full GEO analysis workflow:
-    1. Query multiple LLM providers
-    2. Analyze keyword presence
+    1. Query each keyword separately across LLM providers
+    2. Count brand name mentions in each response
     3. Generate report with scores
     """
     try:
         logger.info(f"Starting analysis for brand: {request.brand_name}")
+        logger.info(f"Keywords: {request.keywords}")
         
-        # Step 1: Query all LLM models
+        # Step 1: Query each keyword across all LLM models
         llm_responses = []
-        prompt = request.prompt_template.format(brand_name=request.brand_name)
-        
-        logger.info(f"Querying {len(request.models)} models")
         
         async with httpx.AsyncClient(timeout=30.0) as client:
-            for model_spec in request.models:
-                # Parse "provider:model" format
-                if ":" in model_spec:
-                    provider, model = model_spec.split(":", 1)
-                else:
-                    provider = model_spec
-                    model = None
+            for keyword in request.keywords:
+                prompt = request.prompt_template.format(keyword=keyword)
                 
-                try:
-                    logger.info(f"Querying {provider} with model {model}")
+                for model_spec in request.models:
+                    # Parse "provider:model" format
+                    if ":" in model_spec:
+                        provider, model = model_spec.split(":", 1)
+                    else:
+                        provider = model_spec
+                        model = None
                     
-                    # Build request payload
-                    payload = {"provider": provider, "prompt": prompt}
-                    if model:
-                        payload["model"] = model
-                    
-                    # Query LLM service
-                    response = await client.post(
-                        f"{LLM_SERVICE_URL}/api/query",
-                        json=payload
-                    )
-                    response.raise_for_status()
-                    llm_data = response.json()
-                    
-                    logger.info(f"Successfully queried {provider}")
-                    
-                    llm_responses.append({
-                        "provider": provider,
-                        "model": llm_data.get("model", model or "unknown"),
-                        "response": llm_data.get("response", "")
-                    })
-                    
-                except httpx.HTTPStatusError as e:
-                    logger.error(f"HTTP error querying {provider}: {e.response.status_code} - {e.response.text}")
-                    llm_responses.append({
-                        "provider": provider,
-                        "model": model or "unknown",
-                        "response": f"Error: HTTP {e.response.status_code}"
-                    })
-                except Exception as e:
-                    logger.error(f"Error querying {provider}: {str(e)}", exc_info=True)
-                    llm_responses.append({
-                        "provider": provider,
-                        "model": model or "unknown",
-                        "response": f"Error: {str(e)}"
-                    })
+                    try:
+                        logger.info(f"Querying {provider} with keyword: {keyword}")
+                        
+                        # Build request payload
+                        payload = {"provider": provider, "prompt": prompt}
+                        if model:
+                            payload["model"] = model
+                        
+                        # Query LLM service
+                        response = await client.post(
+                            f"{LLM_SERVICE_URL}/api/query",
+                            json=payload
+                        )
+                        response.raise_for_status()
+                        llm_data = response.json()
+                        
+                        logger.info(f"Successfully queried {provider} for keyword: {keyword}")
+                        
+                        llm_responses.append({
+                            "provider": provider,
+                            "model": llm_data.get("model", model or "unknown"),
+                            "keyword": keyword,
+                            "response": llm_data.get("response", "")
+                        })
+                        
+                    except httpx.HTTPStatusError as e:
+                        logger.error(f"HTTP error querying {provider} for {keyword}: {e.response.status_code}")
+                        llm_responses.append({
+                            "provider": provider,
+                            "model": model or "unknown",
+                            "keyword": keyword,
+                            "response": f"Error: HTTP {e.response.status_code}"
+                        })
+                    except Exception as e:
+                        logger.error(f"Error querying {provider} for {keyword}: {str(e)}", exc_info=True)
+                        llm_responses.append({
+                            "provider": provider,
+                            "model": model or "unknown",
+                            "keyword": keyword,
+                            "response": f"Error: {str(e)}"
+                        })
         
         if not llm_responses:
             raise HTTPException(status_code=500, detail="Failed to get any LLM responses")
         
         logger.info(f"Got {len(llm_responses)} LLM responses, sending to report service")
         
-        # Step 2: Send to report service for analysis
+        # Step 2: Send to report service for analysis (counts brand mentions)
         async with httpx.AsyncClient(timeout=30.0) as client:
             report_payload = {
                 "brand_name": request.brand_name,
@@ -107,7 +111,7 @@ async def analyze_brand(request: AnalyzeRequest):
                 "llm_responses": llm_responses
             }
             
-            logger.info(f"Sending to report service: {report_payload}")
+            logger.info(f"Sending to report service")
             
             report_response = await client.post(
                 f"{REPORT_SERVICE_URL}/api/reports",
