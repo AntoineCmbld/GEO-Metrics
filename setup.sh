@@ -63,6 +63,13 @@ eval $(minikube docker-env)
 echo -e "${GREEN}✅ Docker configured${NC}"
 echo ""
 
+# Pull required images into minikube
+echo -e "${YELLOW}Pulling required Docker images...${NC}"
+docker pull postgres:13
+docker pull adminer:latest
+echo -e "${GREEN}✅ Images pulled${NC}"
+echo ""
+
 # Delete existing secrets if they exist
 echo -e "${YELLOW}Cleaning up old secrets...${NC}"
 kubectl delete secret db-secret --ignore-not-found=true
@@ -92,6 +99,9 @@ docker build -t report-service:latest ./report-service
 echo "Building llm-service..."
 docker build -t llm-service:latest ./llm-service
 
+echo "Building frontend..."
+docker build -t frontend:latest ./frontend
+
 echo -e "${GREEN}✅ Docker images built${NC}"
 echo ""
 
@@ -108,19 +118,25 @@ kubectl wait --for=condition=ready pod -l app=db --timeout=120s
 kubectl wait --for=condition=ready pod -l app=llm-service --timeout=120s
 kubectl wait --for=condition=ready pod -l app=report-service --timeout=120s
 kubectl wait --for=condition=ready pod -l app=api-gateway --timeout=120s
+kubectl wait --for=condition=ready pod -l app=frontend --timeout=120s
+kubectl wait --for=condition=ready pod -l app=adminer --timeout=120s
 
 echo -e "${GREEN}✅ All pods ready${NC}"
 echo ""
 
-# Get API URL
+# Get URLs
 MINIKUBE_IP=$(minikube ip)
+FRONTEND_URL="http://$MINIKUBE_IP:30002"
 API_URL="http://$MINIKUBE_IP:30000"
+ADMINER_URL="http://$MINIKUBE_IP:30001"
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}  Setup Complete! 🚀${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
-echo -e "${GREEN}API URL:${NC} $API_URL"
+echo -e "${GREEN}Frontend URL:${NC} $FRONTEND_URL"
+echo -e "${GREEN}API URL:${NC}      $API_URL"
+echo -e "${GREEN}Adminer URL:${NC}  $ADMINER_URL"
 echo ""
 echo -e "${YELLOW}Test endpoints:${NC}"
 echo "  Health check:     curl $API_URL/api/health"
