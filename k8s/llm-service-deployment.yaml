@@ -23,16 +23,11 @@ spec:
         env:
         - name: PORT
           value: "8081"
-        - name: OPENAI_API_KEY
+        - name: HUGGINGFACE_API_KEY
           valueFrom:
             secretKeyRef:
               name: llm-secrets
-              key: OPENAI_API_KEY
-        - name: GROQ_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: llm-secrets
-              key: GROQ_API_KEY
+              key: HUGGINGFACE_API_KEY
         resources:
           requests:
             memory: "128Mi"

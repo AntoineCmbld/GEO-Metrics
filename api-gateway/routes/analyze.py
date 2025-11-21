@@ -1,10 +1,10 @@
 import os
+import logging
+import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Dict
-import httpx
 from datetime import datetime, timezone
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/analyze", tags=["analysis"])
 
 class AnalyzeRequest(BaseModel):
     brand_name: str = Field(..., description="Brand name to analyze")
-    models: List[str] = Field(..., description="LLM models to query (e.g., ['openai:gpt-4', 'groq:llama-3.1-8b-instant'])")
+    models: List[str] = Field(..., description="LLM models to query (e.g., ['meta-llama/Llama-3.1-8B-Instruct'])")
     keywords: List[str] = Field(..., description="Keywords to query separately")
     prompt_template: str = Field(
         default="What do you know about {keyword}? What brands come to your mind when you think of {keyword}?",
@@ -31,108 +31,131 @@ class AnalyzeResponse(BaseModel):
 
 @router.post("", response_model=AnalyzeResponse)
 async def analyze_brand(request: AnalyzeRequest):
-    """
-    Orchestrates the full GEO analysis workflow:
-    1. Query each keyword separately across LLM providers
-    2. Count brand name mentions in each response
-    3. Generate report with scores
-    """
-    try:
-        logger.info(f"Starting analysis for brand: {request.brand_name}")
-        logger.info(f"Keywords: {request.keywords}")
-        
-        # Step 1: Query each keyword across all LLM models
-        llm_responses = []
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            for keyword in request.keywords:
-                prompt = request.prompt_template.format(keyword=keyword)
-                
-                for model_spec in request.models:
-                    # Parse "provider:model" format
-                    if ":" in model_spec:
-                        provider, model = model_spec.split(":", 1)
-                    else:
-                        provider = model_spec
-                        model = None
-                    
-                    try:
-                        logger.info(f"Querying {provider} with keyword: {keyword}")
-                        
-                        # Build request payload
-                        payload = {"provider": provider, "prompt": prompt}
-                        if model:
-                            payload["model"] = model
-                        
-                        # Query LLM service
-                        response = await client.post(
-                            f"{LLM_SERVICE_URL}/api/query",
-                            json=payload
-                        )
-                        response.raise_for_status()
-                        llm_data = response.json()
-                        
-                        logger.info(f"Successfully queried {provider} for keyword: {keyword}")
-                        
-                        llm_responses.append({
-                            "provider": provider,
-                            "model": llm_data.get("model", model or "unknown"),
-                            "keyword": keyword,
-                            "response": llm_data.get("response", "")
-                        })
-                        
-                    except httpx.HTTPStatusError as e:
-                        logger.error(f"HTTP error querying {provider} for {keyword}: {e.response.status_code}")
-                        llm_responses.append({
-                            "provider": provider,
-                            "model": model or "unknown",
-                            "keyword": keyword,
-                            "response": f"Error: HTTP {e.response.status_code}"
-                        })
-                    except Exception as e:
-                        logger.error(f"Error querying {provider} for {keyword}: {str(e)}", exc_info=True)
-                        llm_responses.append({
-                            "provider": provider,
-                            "model": model or "unknown",
-                            "keyword": keyword,
-                            "response": f"Error: {str(e)}"
-                        })
-        
-        if not llm_responses:
-            raise HTTPException(status_code=500, detail="Failed to get any LLM responses")
-        
-        logger.info(f"Got {len(llm_responses)} LLM responses, sending to report service")
-        
-        # Step 2: Send to report service for analysis (counts brand mentions)
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            report_payload = {
-                "brand_name": request.brand_name,
-                "keywords": request.keywords,
-                "llm_responses": llm_responses
+    """Analyze brand visibility across LLM providers"""
+    logger.info(f"Starting analysis for brand: {request.brand_name}")
+    
+    provider_analyses = []
+    all_llm_responses = []
+    has_errors = False
+    
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        # Process each keyword
+        for keyword in request.keywords:
+            keyword_analysis = {
+                "keyword": keyword,
+                "provider_results": [],
+                "total_mentions": 0,
+                "visibility_score": 0.0
             }
             
-            logger.info(f"Sending to report service")
+            # Generate prompt for this keyword
+            prompt = request.prompt_template.format(keyword=keyword)
             
+            # Query each model
+            for model in request.models:
+                try:
+                    # Query LLM service
+                    llm_response = await client.post(
+                        f"{LLM_SERVICE_URL}/api/query",
+                        json={
+                            "model": model,
+                            "prompt": prompt
+                        }
+                    )
+                    
+                    if llm_response.status_code != 200:
+                        error_detail = llm_response.text
+                        logger.error(f"LLM query failed for {model} - {error_detail}")
+                        has_errors = True
+                        keyword_analysis["provider_results"].append({
+                            "model": model,
+                            "response": f"Error: HTTP {llm_response.status_code}",
+                            "brand_mentions": 0
+                        })
+                        continue
+                    
+                    llm_data = llm_response.json()
+                    response_text = llm_data.get("response", "")
+                    
+                    # Count brand mentions (case-insensitive)
+                    brand_mentions = response_text.lower().count(request.brand_name.lower())
+                    
+                    keyword_analysis["provider_results"].append({
+                        "model": model,
+                        "response": response_text,
+                        "brand_mentions": brand_mentions
+                    })
+                    
+                    keyword_analysis["total_mentions"] += brand_mentions
+                    
+                    # Store for report creation
+                    all_llm_responses.append({
+                        "model": model,
+                        "keyword": keyword,
+                        "response": response_text
+                    })
+                    
+                except Exception as e:
+                    logger.error(f"Error querying {model} - {str(e)}")
+                    has_errors = True
+                    keyword_analysis["provider_results"].append({
+                        "model": model,
+                        "response": f"Error: {str(e)}",
+                        "brand_mentions": 0
+                    })
+            
+            # Calculate visibility score for this keyword (mentions per model queried)
+            num_models = len(request.models)
+            if num_models > 0:
+                keyword_analysis["visibility_score"] = keyword_analysis["total_mentions"] / num_models
+            
+            provider_analyses.append(keyword_analysis)
+    
+    # Don't create report if there were errors
+    if has_errors:
+        logger.error("Analysis failed with errors, not creating report")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Analysis failed",
+                "message": "One or more LLM queries failed. Please check the logs and try again.",
+                "partial_results": provider_analyses
+            }
+        )
+    
+    # Calculate overall score (average visibility across all keywords)
+    overall_score = sum(k["visibility_score"] for k in provider_analyses) / len(provider_analyses) if provider_analyses else 0.0
+    
+    # Create report in report-service
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             report_response = await client.post(
                 f"{REPORT_SERVICE_URL}/api/reports",
-                json=report_payload
+                json={
+                    "brand_name": request.brand_name,
+                    "keywords": request.keywords,
+                    "llm_responses": all_llm_responses
+                }
             )
-            report_response.raise_for_status()
+            
+            if report_response.status_code != 201:
+                raise HTTPException(
+                    status_code=report_response.status_code,
+                    detail=f"Failed to create report: {report_response.text}"
+                )
+            
             report_data = report_response.json()
-        
-        logger.info(f"Successfully created report {report_data.get('id')}")
-        
-        return AnalyzeResponse(
-            report_id=report_data["id"],
-            brand_name=report_data["brand_name"],
-            overall_score=report_data["overall_score"],
-            provider_analyses=report_data["provider_analyses"],
-            timestamp=datetime.now(timezone.utc).isoformat()
+            
+            return AnalyzeResponse(
+                report_id=report_data["id"],
+                brand_name=request.brand_name,
+                overall_score=overall_score,
+                provider_analyses=provider_analyses,
+                timestamp=datetime.now(timezone.utc).isoformat()
+            )
+    except httpx.RequestError as e:
+        logger.error(f"Failed to create report: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create report: {str(e)}"
         )
-        
-    except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error in analysis: {e.response.status_code} - {e.response.text}", exc_info=True)
-        raise HTTPException(status_code=e.response.status_code, detail=f"Service error: {e.response.text}")
-    except Exception as e:
-        logger.error(f"Error in analysis: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")

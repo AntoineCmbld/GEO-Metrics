@@ -11,10 +11,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
+class LLMResponse(BaseModel):
+    model: str = Field(..., description="Model used for the query")
+    keyword: str = Field(..., description="Keyword that was queried")
+    response: str = Field(..., description="Response from the LLM")
+
 class CreateReportRequest(BaseModel):
     brand_name: str = Field(..., description="Brand name to analyze")
     keywords: List[str] = Field(..., description="Keywords to search for in responses")
-    llm_responses: List[Dict] = Field(..., description="LLM responses to analyze")
+    llm_responses: List[LLMResponse] = Field(..., description="LLM responses to analyze")
 
 class KeywordMatch(BaseModel):
     keyword: str
@@ -22,7 +27,6 @@ class KeywordMatch(BaseModel):
     found: bool
 
 class ProviderAnalysis(BaseModel):
-    provider: str
     model: str
     response: str
     keyword_matches: List[KeywordMatch]
@@ -46,11 +50,14 @@ async def create_report(request: CreateReportRequest, db: Session = Depends(get_
         logger.info(f"Keywords: {request.keywords}")
         logger.info(f"LLM responses count: {len(request.llm_responses)}")
         
+        # Convert Pydantic models to dicts using model_dump()
+        llm_responses = [resp.model_dump() for resp in request.llm_responses]
+        
         generator = ReportGenerator(db)
         report = generator.generate_report(
             brand_name=request.brand_name,
             keywords=request.keywords,
-            llm_responses=request.llm_responses
+            llm_responses=llm_responses
         )
         
         logger.info(f"Successfully created report {report.id}")

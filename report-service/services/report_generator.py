@@ -20,8 +20,8 @@ class ReportGenerator:
         return len(pattern.findall(text))
 
     def analyze_keyword_response(self, keyword: str, responses: list, brand_name: str) -> dict:
-        """Analyze all provider responses for a specific keyword"""
-        provider_results = []
+        """Analyze all model responses for a specific keyword"""
+        model_results = []
         total_mentions = 0
         
         for resp in responses:
@@ -29,8 +29,7 @@ class ReportGenerator:
                 mentions = self.count_brand_mentions(resp.get("response", ""), brand_name)
                 total_mentions += mentions
                 
-                provider_results.append({
-                    "provider": resp.get("provider"),
+                model_results.append({
                     "model": resp.get("model"),
                     "response": resp.get("response", ""),
                     "brand_mentions": mentions
@@ -38,7 +37,7 @@ class ReportGenerator:
         
         return {
             "keyword": keyword,
-            "provider_results": provider_results,
+            "model_results": model_results,
             "total_mentions": total_mentions,
             "visibility_score": min(total_mentions * 25, 100)  # 1 mention = 25 points, cap at 100
         }
