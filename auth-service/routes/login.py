@@ -6,6 +6,7 @@ from passlib.hash import bcrypt
 from database import get_db
 from models.user_model import User
 from jose import jwt
+from datetime import datetime, timedelta, timezone
 
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "changeme")
 
@@ -20,5 +21,14 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter_by(username=request.username).first()
     if not user or not bcrypt.verify(request.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = jwt.encode({"user_id": user.id, "username": user.username}, SECRET_KEY, algorithm="HS256")
+    expire = datetime.now(timezone.utc) + timedelta(hours=1)
+    token = jwt.encode(
+        {
+            "user_id": user.id,
+            "username": user.username,
+            "exp": expire
+        },
+        SECRET_KEY,
+        algorithm="HS256"
+    )
     return {"access_token": token, "token_type": "bearer"}
