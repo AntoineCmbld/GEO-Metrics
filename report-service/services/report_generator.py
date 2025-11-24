@@ -1,11 +1,12 @@
 from models.report_model import Report, LLMResponse
 from sqlalchemy.orm import Session
+from typing import Optional
 
 class ReportGenerator:
     def __init__(self, db: Session):
         self.db = db
 
-    def generate_report(self, brand_name: str, user_id: int, llm_responses: list):
+    def generate_report(self, brand_name: str, user_id: Optional[int], llm_responses: list):
         # Create the report object
         report = Report(
             brand_name=brand_name,
