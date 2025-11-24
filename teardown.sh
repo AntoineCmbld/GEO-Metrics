@@ -21,8 +21,7 @@ echo ""
 
 # Delete secrets
 echo -e "${YELLOW}Deleting secrets...${NC}"
-kubectl delete secret db-secret --ignore-not-found=true
-kubectl delete secret llm-secrets --ignore-not-found=true
+kubectl delete secret --all --ignore-not-found=true
 echo -e "${GREEN}✅ Secrets deleted${NC}"
 echo ""
 

@@ -2,7 +2,7 @@ import os
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from routes import health, reports, llm, auth
+from routes import login, register
 
 # Configure logging
 logging.basicConfig(
@@ -13,26 +13,24 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("API Gateway starting up...")
+    logger.info("Auth Service starting up...")
     yield
-    logger.info("API Gateway shutting down...")
+    logger.info("Auth Service shutting down...")
 
 app = FastAPI(
-    title="api-gateway",
+    title="auth-service",
     version="0.1.0",
     lifespan=lifespan
 )
 
-app.include_router(health.router, prefix="/api")
-app.include_router(reports.router, prefix="/api")
-app.include_router(llm.router, prefix="/api")
-app.include_router(auth.router, prefix="/api")
+app.include_router(login.router, prefix="/api")
+app.include_router(register.router, prefix="/api")
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=int(os.getenv("PORT", "3000")),
+        port=int(os.getenv("PORT", "8080")),
         reload=True,
     )

@@ -85,6 +85,18 @@ kubectl create secret generic db-secret \
 kubectl create secret generic llm-secrets \
   --from-literal=HUGGINGFACE_API_KEY="$HUGGINGFACE_API_KEY"
 
+# Generate a random secret key for JWT
+echo -e "${YELLOW}Generating JWT secret key...${NC}"
+JWT_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+echo -e "${GREEN}JWT secret key generated${NC}"
+
+# Delete existing auth secret if it exists
+kubectl delete secret auth-secret --ignore-not-found=true
+
+# Create auth secret
+kubectl create secret generic auth-secret \
+  --from-literal=JWT_SECRET_KEY="$JWT_SECRET_KEY"
+
 echo -e "${GREEN}✅ Secrets created${NC}"
 echo ""
 
@@ -101,6 +113,9 @@ docker build -t llm-service:latest ./llm-service
 
 echo "Building frontend..."
 docker build -t frontend:latest ./frontend
+
+echo "Building auth-service ..."
+docker build -t auth-service:latest ./auth-service
 
 echo -e "${GREEN}✅ Docker images built${NC}"
 echo ""
@@ -120,6 +135,7 @@ kubectl wait --for=condition=ready pod -l app=report-service --timeout=120s
 kubectl wait --for=condition=ready pod -l app=api-gateway --timeout=120s
 kubectl wait --for=condition=ready pod -l app=frontend --timeout=120s
 kubectl wait --for=condition=ready pod -l app=adminer --timeout=120s
+kubectl wait --for=condition=ready pod -l app=auth-service --timeout=120s
 
 echo -e "${GREEN}✅ All pods ready${NC}"
 echo ""

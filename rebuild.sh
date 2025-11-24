@@ -24,18 +24,21 @@ if [ "$1" == "all" ] || [ -z "$1" ]; then
     docker build -t report-service:latest ./report-service
     docker build -t llm-service:latest ./llm-service
     docker build -t frontend:latest ./frontend
+    docker build -t auth-service:latest ./auth-service
 
     kubectl rollout restart deployment/api-gateway
     kubectl rollout restart deployment/report-service
     kubectl rollout restart deployment/llm-service
     kubectl rollout restart deployment/frontend
     kubectl rollout restart deployment/db
+    kubectl rollout restart deployment/auth-service
 
     kubectl wait --for=condition=ready pod -l app=api-gateway --timeout=60s
     kubectl wait --for=condition=ready pod -l app=report-service --timeout=60s
     kubectl wait --for=condition=ready pod -l app=llm-service --timeout=60s
     kubectl wait --for=condition=ready pod -l app=frontend --timeout=120s
     kubectl wait --for=condition=ready pod -l app=db --timeout=60s
+    kubectl wait --for=condition=ready pod -l app=auth-service --timeout=60s
 
 elif [ "$1" == "api-gateway" ] || [ "$1" == "gateway" ]; then
     echo -e "${YELLOW}Rebuilding api-gateway...${NC}"
@@ -65,6 +68,12 @@ elif [ "$1" == "db" ]; then
     echo -e "${YELLOW}Restarting db deployment...${NC}"
     kubectl rollout restart deployment/db
     kubectl wait --for=condition=ready pod -l app=db --timeout=60s
+
+elif [ "$1" == "auth-service" ] || [ "$1" == "auth" ]; then
+    echo -e "${YELLOW}Rebuilding auth-service...${NC}"
+    docker build -t auth-service:latest ./auth-service
+    kubectl rollout restart deployment/auth-service
+    kubectl wait --for=condition=ready pod -l app=auth-service --timeout=60s
 
 else
     echo "Usage: ./rebuild.sh [all|api-gateway|report-service|llm-service|frontend|db]"
