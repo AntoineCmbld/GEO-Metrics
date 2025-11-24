@@ -12,12 +12,6 @@ async def report_health(request: Request):
     target_url = f"{REPORT_SERVICE_URL}/api/health"
     return await proxy_request(request, target_url)
 
-@router.post("")
-async def create_report(request: Request):
-    """Create a new report"""
-    target_url = f"{REPORT_SERVICE_URL}/api/reports"
-    return await proxy_request(request, target_url)
-
 @router.get("")
 async def list_reports(request: Request):
     """List all reports"""
@@ -34,12 +28,6 @@ async def get_report(report_id: int, request: Request):
 async def delete_report(report_id: int, request: Request):
     """Delete a report"""
     target_url = f"{REPORT_SERVICE_URL}/api/reports/{report_id}"
-    return await proxy_request(request, target_url)
-
-@router.get("/{report_id}/score")
-async def get_report_score(report_id: int, request: Request):
-    """Get report score"""
-    target_url = f"{REPORT_SERVICE_URL}/api/reports/{report_id}/score"
     return await proxy_request(request, target_url)
 
 @router.get("/{report_id}/llm-responses")

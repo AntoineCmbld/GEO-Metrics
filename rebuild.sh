@@ -24,43 +24,50 @@ if [ "$1" == "all" ] || [ -z "$1" ]; then
     docker build -t report-service:latest ./report-service
     docker build -t llm-service:latest ./llm-service
     docker build -t frontend:latest ./frontend
-    
+
     kubectl rollout restart deployment/api-gateway
     kubectl rollout restart deployment/report-service
     kubectl rollout restart deployment/llm-service
     kubectl rollout restart deployment/frontend
-    
+    kubectl rollout restart deployment/db
+
     kubectl wait --for=condition=ready pod -l app=api-gateway --timeout=60s
     kubectl wait --for=condition=ready pod -l app=report-service --timeout=60s
     kubectl wait --for=condition=ready pod -l app=llm-service --timeout=60s
     kubectl wait --for=condition=ready pod -l app=frontend --timeout=120s
-    
+    kubectl wait --for=condition=ready pod -l app=db --timeout=60s
+
 elif [ "$1" == "api-gateway" ] || [ "$1" == "gateway" ]; then
     echo -e "${YELLOW}Rebuilding api-gateway...${NC}"
     docker build -t api-gateway:latest ./api-gateway
     kubectl rollout restart deployment/api-gateway
     kubectl wait --for=condition=ready pod -l app=api-gateway --timeout=60s
-    
+
 elif [ "$1" == "report-service" ] || [ "$1" == "reports" ]; then
     echo -e "${YELLOW}Rebuilding report-service...${NC}"
     docker build -t report-service:latest ./report-service
     kubectl rollout restart deployment/report-service
     kubectl wait --for=condition=ready pod -l app=report-service --timeout=60s
-    
+
 elif [ "$1" == "llm-service" ] || [ "$1" == "llm" ]; then
     echo -e "${YELLOW}Rebuilding llm-service...${NC}"
     docker build -t llm-service:latest ./llm-service
     kubectl rollout restart deployment/llm-service
     kubectl wait --for=condition=ready pod -l app=llm-service --timeout=60s
-    
+
 elif [ "$1" == "frontend" ] || [ "$1" == "web" ]; then
     echo -e "${YELLOW}Rebuilding frontend...${NC}"
     docker build -t frontend:latest ./frontend
     kubectl rollout restart deployment/frontend
     kubectl wait --for=condition=ready pod -l app=frontend --timeout=120s
-    
+
+elif [ "$1" == "db" ]; then
+    echo -e "${YELLOW}Restarting db deployment...${NC}"
+    kubectl rollout restart deployment/db
+    kubectl wait --for=condition=ready pod -l app=db --timeout=60s
+
 else
-    echo "Usage: ./rebuild.sh [all|api-gateway|report-service|llm-service|frontend]"
+    echo "Usage: ./rebuild.sh [all|api-gateway|report-service|llm-service|frontend|db]"
     exit 1
 fi
 
