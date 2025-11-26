@@ -1,9 +1,11 @@
 import os
 from fastapi import APIRouter, Request, Depends
+from fastapi.security import HTTPBearer
 from .proxy import proxy_request
 from .auth_utils import get_user_id
 
-router = APIRouter(prefix="/llm", tags=["llm"])
+security = HTTPBearer()
+router = APIRouter(prefix="/llm", tags=["llm"], dependencies=[Depends(security)])
 
 LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL", "http://llm-service:8081")
 

@@ -1,11 +1,13 @@
 import os
 from fastapi import APIRouter, Request, Depends
+from fastapi.security import HTTPBearer
 from typing import List
 from pydantic import BaseModel, Field
 from .proxy import proxy_request
 from .auth_utils import get_user_id
 
-router = APIRouter(prefix="/reports", tags=["reports"])
+security = HTTPBearer()
+router = APIRouter(prefix="/reports", tags=["reports"], dependencies=[Depends(security)])
 
 REPORT_SERVICE_URL = os.getenv("REPORT_SERVICE_URL", "http://report-service:8080")
 
