@@ -7,8 +7,9 @@ logger = logging.getLogger(__name__)
 
 async def proxy_request(
     request: Request,
-    target_base_url: str,
-    target_path: str = "",
+    target_url: str,
+    extra_headers: Optional[Dict[str, Any]] = None,
+    json: Optional[dict] = None,
     timeout: float = 30.0
 ) -> Response:
     """
@@ -16,61 +17,56 @@ async def proxy_request(
     
     Args:
         request: The incoming FastAPI request
-        target_base_url: Base URL of the target service (e.g., "http://report-service:8080")
-        target_path: Path to append to base URL (e.g., "/api/reports")
+        target_url: Base URL of the target service (e.g., "http://report-service:8080")
+        extra_headers: Optional dictionary of additional headers to include
+        json: Optional JSON data to send in the request body
         timeout: Request timeout in seconds
     
     Returns:
         Response from the target service
     """
-    # Build target URL
-    target_url = f"{target_base_url}{target_path}"
-    
-    # Get request body
-    body = await request.body()
-    
-    # Prepare headers - filter out problematic headers
+    # Prepare headers
     headers = {}
-    excluded_headers = {
-        "host",
-        "content-length",
-        "transfer-encoding",
-        "connection",
-    }
-    
+    excluded_headers = {"host", "content-length", "transfer-encoding", "connection"}
     for key, value in request.headers.items():
         if key.lower() not in excluded_headers:
             headers[key] = value
-    
+    if extra_headers:
+        headers.update(extra_headers)
+
     logger.info(f"Proxying {request.method} request to {target_url}")
-    
+
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.request(
-                method=request.method,
-                url=target_url,
-                headers=headers,
-                content=body,
-                params=request.query_params,
-            )
-            
-            # Return response
+            if request.method in ("POST", "PUT", "PATCH"):
+                resp = await client.request(
+                    method=request.method,
+                    url=target_url,
+                    headers=headers,
+                    json=json if json is not None else await request.json()
+                )
+            else:
+                resp = await client.request(
+                    method=request.method,
+                    url=target_url,
+                    headers=headers,
+                )
             return Response(
-                content=response.content,
-                status_code=response.status_code,
-                headers=dict(response.headers),
+                content=resp.content,
+                status_code=resp.status_code,
+                headers=dict(resp.headers),
             )
     except httpx.TimeoutException as e:
         logger.error(f"Timeout proxying to {target_url}: {str(e)}")
         return Response(
-            content=f'{{"error": "Gateway timeout", "detail": "Request to {target_base_url} timed out"}}',
+            content=f'{{"error": "Gateway timeout", "detail": "Request to {target_url} timed out"}}',
             status_code=504,
             media_type="application/json"
         )
     except httpx.RequestError as e:
         logger.error(f"Error proxying to {target_url}: {str(e)}")
         return Response(
-            content=f'{{"error": "Bad gateway", "detail": "Failed to connect to {target_base_url}"}}',
+            content=f'{{"error": "Bad gateway", "detail": "Failed to connect to {target_url}"}}',
             status_code=502,
             media_type="application/json"
         )

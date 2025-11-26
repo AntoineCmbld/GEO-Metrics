@@ -1,7 +1,6 @@
 import os
 from fastapi import APIRouter, Request, Depends
 from typing import List
-import httpx
 from pydantic import BaseModel, Field
 from .proxy import proxy_request
 from .auth_utils import get_user_id
@@ -18,7 +17,6 @@ class AnalyzeRequest(BaseModel):
     regions: List[str] = Field(..., description="Region contexts")
     languages: List[str] = Field(..., description="Language codes (use 'default' for original prompts, or language codes like 'es', 'fr')")
     prompt_templates: List[str] = Field(..., description="Prompt templates with {keyword} placeholder")
-    user_id: int = Field(..., description="User ID")
 
 class AnalyzeResponse(BaseModel):
     report_id: int
@@ -29,42 +27,52 @@ class AnalyzeResponse(BaseModel):
     failed_queries: int
 
 @router.get("/health")
-async def report_health(request: Request):
+async def report_health(request: Request, user_id: int = Depends(get_user_id)):
     """Check report service health"""
     target_url = f"{REPORT_SERVICE_URL}/api/health"
-    return await proxy_request(request, target_url)
+    headers = {"X-User-ID": str(user_id)}
+    return await proxy_request(request, target_url, extra_headers=headers)
 
 @router.get("")
-async def list_reports(request: Request):
+async def list_reports(request: Request, user_id: int = Depends(get_user_id)):
     """List all reports"""
     target_url = f"{REPORT_SERVICE_URL}/api/reports"
-    return await proxy_request(request, target_url)
+    headers = {"X-User-ID": str(user_id)}
+    return await proxy_request(request, target_url, extra_headers=headers)
 
 @router.get("/{report_id}")
-async def get_report(report_id: int, request: Request):
+async def get_report(report_id: int, request: Request, user_id: int = Depends(get_user_id)):
     """Get a specific report"""
     target_url = f"{REPORT_SERVICE_URL}/api/reports/{report_id}"
-    return await proxy_request(request, target_url)
+    headers = {"X-User-ID": str(user_id)}
+    return await proxy_request(request, target_url, extra_headers=headers)
 
 @router.delete("/{report_id}")
-async def delete_report(report_id: int, request: Request):
+async def delete_report(report_id: int, request: Request, user_id: int = Depends(get_user_id)):
     """Delete a report"""
     target_url = f"{REPORT_SERVICE_URL}/api/reports/{report_id}"
-    return await proxy_request(request, target_url)
+    headers = {"X-User-ID": str(user_id)}
+    return await proxy_request(request, target_url, extra_headers=headers)
 
 @router.get("/{report_id}/llm-responses")
-async def get_report_llm_responses(report_id: int, request: Request):
+async def get_report_llm_responses(report_id: int, request: Request, user_id: int = Depends(get_user_id)):
     """Get report LLM responses"""
     target_url = f"{REPORT_SERVICE_URL}/api/reports/{report_id}/llm-responses"
-    return await proxy_request(request, target_url)
+    headers = {"X-User-ID": str(user_id)}
+    return await proxy_request(request, target_url, extra_headers=headers)
 
 @router.post("/analyze", response_model=AnalyzeResponse)
-async def analyze_brand(request: AnalyzeRequest, user_id: int = Depends(get_user_id)):
+async def analyze_brand(
+    request: Request,
+    analyze_request: AnalyzeRequest,
+    user_id: int = Depends(get_user_id)
+):
     """Analyze brand visibility across LLM providers (proxied to report-service)"""
-    import httpx
     target_url = f"{REPORT_SERVICE_URL}/api/analyze"
     headers = {"X-User-ID": str(user_id)}
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(target_url, json=request.model_dump(), headers=headers)
-        resp.raise_for_status()
-        return resp.json()
+    return await proxy_request(
+        request,
+        target_url,
+        extra_headers=headers,
+        json=analyze_request.model_dump()
+    )

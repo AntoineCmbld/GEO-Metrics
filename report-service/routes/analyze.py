@@ -2,7 +2,7 @@ import os
 import logging
 import httpx
 import asyncio
-from fastapi import APIRouter, HTTPException, Header, Depends
+from fastapi import APIRouter, Header, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -30,7 +30,6 @@ class AnalyzeRequest(BaseModel):
         default=["What do you know about {keyword}? What brands come to your mind when you think of {keyword}?"],
         description="List of prompt templates with {keyword} placeholder"
     )
-    user_id: Optional[int] = None
 
 class AnalyzeResponse(BaseModel):
     report_id: int
@@ -81,7 +80,7 @@ async def query_llm(client: httpx.AsyncClient, model: str, prompt: str, region: 
 async def analyze_brand(
     request: AnalyzeRequest,
     db: Session = Depends(get_db),
-    x_user_id: Optional[int] = Header(None)
+    x_user_id: int = Header(...)
 ):
     """Analyze brand visibility across LLM providers"""
     logger.info(
